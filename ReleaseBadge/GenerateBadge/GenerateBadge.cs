@@ -3,15 +3,15 @@ using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
-
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Host;
 using Microsoft.WindowsAzure.Storage.Blob;
 
-using ReleaseBadge.ShieldIO;
-
-namespace ReleaseBadge
+namespace ReleaseBadge.GenerateBadge
 {
+    /// <summary>
+    /// Class to generate the badge in the Azure Function
+    /// </summary>
     public static class GetBadge
     {
         /// <summary>
@@ -23,10 +23,9 @@ namespace ReleaseBadge
         /// 
         /// It has a different color based on the status of the deploy.
         /// 
-        /// The badge is stored in a azure blob so we can be easily (and cheaply) accessed from anywhere.
+        /// The badge is stored in a azure blob so it can be easily (and cheaply) accessed from anywhere.
         /// 
-        /// By default it only created a badge for successfull deploys. Pass the paramter X-EnableForAllStatus with value true to generate
-        /// a badge for any status.
+        /// By default it only creates a badge for successfull deploys. Pass the paramter X-EnableForAllStatus with value true to generate a badge for any status.
         /// </summary>
         /// <param name="req"></param>
         /// <param name="binder"></param>
@@ -35,8 +34,6 @@ namespace ReleaseBadge
         [FunctionName("GenerateBadge")]
         public static async Task<object> Run([HttpTrigger(WebHookType = "genericJson")]HttpRequestMessage req, Binder binder, TraceWriter log)
         {
-            string badgeFileName = null;
-
             log.Info($"Webhook was triggered!");
 
             var eventHelper = new DeploymentCompletedEventHelper(await req.Content.ReadAsStringAsync());
@@ -54,9 +51,9 @@ namespace ReleaseBadge
                 return req.CreateResponse(HttpStatusCode.OK, new { result = $"status {eventHelper.Status} ignored for for {eventHelper.Id}" });
             }
 
-            string releaseIdentifier = GetReleaseIdentifier(parameterHelper, eventHelper);
+            var releaseIdentifier = GetReleaseIdentifier(parameterHelper, eventHelper);
 
-            badgeFileName = string.Format("{0}/{1}-{2}.{3}", eventHelper.GetTeamProjectName(), releaseIdentifier, eventHelper.EnvironmentName, parameterHelper.GetFileType());
+            var badgeFileName = string.Format($"{eventHelper.GetTeamProjectName()}/{releaseIdentifier}-{eventHelper.EnvironmentName}.{parameterHelper.GetFileType()}");
 
             log.Info($"going to generate badge with name {badgeFileName}");
 
@@ -67,25 +64,24 @@ namespace ReleaseBadge
             return req.CreateResponse(HttpStatusCode.OK, new { result = $"Generated {badgeFileName} for {eventHelper.Id} on {blobUri}" });
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="parameterHelper"></param>
+        /// <param name="eventHelper"></param>
+        /// <returns></returns>
         private static string GetReleaseIdentifier(ConfigurationHelper parameterHelper, DeploymentCompletedEventHelper eventHelper)
         {
             var releaseFriendlyName = parameterHelper.GetReleaseDefinitionFriendlyName();
 
             if (releaseFriendlyName != null)
-            {
                 return releaseFriendlyName;
-            }
 
-            if (parameterHelper.UseReleaseName())
-            {
-                return eventHelper.GetReleaseName();
-            }
-
-            return eventHelper.GetReleaseIdentifier();
+            return parameterHelper.UseReleaseName() ? eventHelper.GetReleaseName() : eventHelper.GetReleaseIdentifier();
         }
 
         /// <summary>
-        /// Generates the badge and stores is on the BadgesBlob blob storage.
+        /// Generates the badge and stores it on the BadgesBlob blob storage.
         /// 
         /// The BadgesBlob needs to be configured in the config files
         /// </summary>
@@ -93,18 +89,15 @@ namespace ReleaseBadge
         /// <param name="configurationHelper"></param>
         /// <param name="binder"></param>
         /// <param name="badgeFileName"></param>
+        /// <param name="contentType"></param>
         /// <returns>the uri of the blob the badge was written to</returns>
         private static async Task<string> WriteBadgeToStorage(DeploymentCompletedEventHelper helper, ConfigurationHelper configurationHelper, Binder binder, string badgeFileName, string contentType)
         {
-            var generator = new ShieldsIOBadgeGenerator();
-
-            var badgeContent = await generator.GenerateBadge(
-                helper.ReleaseDefinitionName,
-                helper.ReleaseName,
-                helper.GetColor(),
-                configurationHelper.GetFileType(),
-                configurationHelper.GetStyle()
-                );
+            var badgeContent = await ShieldsIOBadgeGenerator.GenerateBadge(helper.ReleaseDefinitionName,
+                                                                           helper.ReleaseName,
+                                                                           helper.GetColor(),
+                                                                           configurationHelper.GetFileType(),
+                                                                           configurationHelper.GetStyle());
 
             var attributes = new Attribute[]
             {
@@ -114,10 +107,10 @@ namespace ReleaseBadge
 
             var maxAge = configurationHelper.GetMaxAge();
 
-            CloudBlockBlob cloudBlob = await binder.BindAsync<CloudBlockBlob>(attributes);
+            var cloudBlob = await binder.BindAsync<CloudBlockBlob>(attributes);
 
             cloudBlob.Properties.CacheControl = $"public, max-age={maxAge}";
-            cloudBlob.Properties.ContentType = (contentType == "svg") ? $"image/{contentType}+xml" : $"image/{contentType}";
+            cloudBlob.Properties.ContentType = contentType == "svg" ? $"image/{contentType}+xml" : $"image/{contentType}";
 
             await cloudBlob.UploadFromByteArrayAsync(badgeContent, 0, badgeContent.Length);
 

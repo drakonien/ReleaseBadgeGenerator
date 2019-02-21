@@ -1,37 +1,29 @@
 ﻿using Newtonsoft.Json;
 
-namespace ReleaseBadge
+namespace ReleaseBadge.GenerateBadge
 {
     /// <summary>
     /// Helper class that abstracts access to the Deployment completed event.
     /// </summary>
     internal class DeploymentCompletedEventHelper
     {
-        private dynamic data;
+        private readonly dynamic _data;
 
-        public string Id
-        {
-            get { return (string)data.id; }
-        }
+        #region Properties
 
-        public string Status
-        {
-            get { return (string)data.resource.environment.status; }
-        }
+        public string Id => (string)_data.id;
 
-        public string EnvironmentName
-        {
-            get { return (string)data.resource.environment.name; }
-        }
+        public string Status => (string)_data.resource.environment.status;
 
-        public string ReleaseDefinitionName
-        {
-            get { return (string)data.resource.environment.releaseDefinition.name; }
-        }
-        public string ReleaseName
-        {
-            get { return (string)data.resource.environment.release.name; }
-        }
+        public string EnvironmentName => (string)_data.resource.environment.name;
+
+        public string ReleaseDefinitionName => (string)_data.resource.environment.releaseDefinition.name;
+
+        public string ReleaseName => (string)_data.resource.environment.release.name;
+
+        #endregion
+
+        #region Constructor
 
         /// <summary>
         /// ctor. Receives the JSON content of the event
@@ -41,8 +33,10 @@ namespace ReleaseBadge
         /// <param name="jsonContent"></param>
         public DeploymentCompletedEventHelper(string jsonContent)
         {
-            data = JsonConvert.DeserializeObject(jsonContent);
+            _data = JsonConvert.DeserializeObject(jsonContent);
         }
+
+        #endregion
 
         /// <summary>
         /// is the event valid?
@@ -50,20 +44,16 @@ namespace ReleaseBadge
         /// <returns>true if it is, false otherwise</returns>
         public bool IsValidEvent()
         {
-            return data != null && data.id != null && data.eventType != "ms.vss-release.deployment-completed-event";
+            return _data != null && _data.id != null && _data.eventType != "ms.vss-release.deployment-completed-event";
         }
 
         /// <summary>
         /// Gets the color based on the release status
-        /// 
-        /// Return either green, yellow or red
         /// </summary>
-        /// <returns></returns>
+        /// <returns>green if status is "succedded", yellow if is "partiallySucceeded" and red otherwise</returns>
         public string GetColor()
         {
-            var status = (string)data.resource.environment.status;
-
-            switch (status)
+            switch ((string)_data.resource.environment.status)
             {
                 case "succeeded":
                     return "green";
@@ -76,22 +66,30 @@ namespace ReleaseBadge
         }
 
         /// <summary>
-        ///  The release identifier is composed of the them project guid plus the release definition id
+        /// The release identifier is composed of the project guid plus the release definition id
         /// </summary>
         /// <returns></returns>
         internal string GetReleaseIdentifier()
         {
-            return data.resource.environment.releaseDefinition.id;
+            return _data.resource.environment.releaseDefinition.id;
         }
 
+        /// <summary>
+        /// Gets the Team Project name
+        /// </summary>
+        /// <returns>the id of the project</returns>
         internal string GetTeamProjectName()
         {
-            return data.resource.project.id;
+            return _data.resource.project.id;
         }
 
+        /// <summary>
+        /// Gets the Release name
+        /// </summary>
+        /// <returns>the nam of the "releaseDefinition"</returns>
         internal string GetReleaseName()
         {
-            return data.resource.environment.releaseDefinition.name;
+            return _data.resource.environment.releaseDefinition.name;
         }
     }
 }

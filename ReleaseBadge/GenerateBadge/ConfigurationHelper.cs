@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace ReleaseBadge
+namespace ReleaseBadge.GenerateBadge
 {
     /// <summary>
     /// Helper to get configuration value.
@@ -14,19 +11,25 @@ namespace ReleaseBadge
     /// </summary>
     internal class ConfigurationHelper
     {
-        private HttpRequestMessage req;
+        private readonly HttpRequestMessage _req;
+        
+        #region Constructor
 
         public ConfigurationHelper(HttpRequestMessage req)
         {
-            this.req = req;
+            _req = req;
         }
+
+        #endregion
+
+        #region internal methods
 
         /// <summary>
         /// Predicate to check if badges should be generated for any status.
         /// 
         /// If disable only sucessfull deploys generated a badge and other status are ignored.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>true if the bagde should be generated for any status, false otherwise</returns>
         internal bool EnabledAllStatus()
         {
             return GetConfigurationValue("EnableForAllStatus", "false").ToLower() == "true"; 
@@ -42,11 +45,11 @@ namespace ReleaseBadge
         }
 
         /// <summary>
-        /// Get badge file type (png,gif,svg,...)
+        /// Get badge file type (png, gif, svg...)
         /// 
         /// Default value is PNG
         /// </summary>
-        /// <returns></returns>
+        /// <returns>the badge file type if specified, "png" as default value</returns>
         internal string GetFileType()
         {
             return GetConfigurationValue("FileType", "png");
@@ -54,22 +57,17 @@ namespace ReleaseBadge
 
         /// <summary>
         /// Gets release definition friendly name. Use an alternate name for the badge release definition name
-         /// </summary>
+        /// </summary>
         /// <returns></returns>
         internal string GetReleaseDefinitionFriendlyName()
         {
-            if (req.Headers.Contains("X-ReleaseDefinitionFileFriendlyName"))
-            {
-                return req.Headers.GetValues("X-ReleaseDefinitionFileFriendlyName").FirstOrDefault();
-            }
-
-            return null;
+            return _req.Headers.Contains("X-ReleaseDefinitionFileFriendlyName") ? _req.Headers.GetValues("X-ReleaseDefinitionFileFriendlyName").FirstOrDefault() : null;
         }
 
         /// <summary>
         /// Gets badge cache (seconds) duration
         /// </summary>
-        /// <returns></returns>
+        /// <returns>the cache duration if specified, 15 as default value</returns>
         internal string GetMaxAge()
         {
             return GetConfigurationValue("MaxAge", "15");
@@ -80,7 +78,7 @@ namespace ReleaseBadge
         /// 
         /// default value: true
         /// </summary>
-        /// <returns></returns>
+        /// <returns>true if the release name should be used and false otherwise</returns>
         internal bool UseReleaseName()
         {
             return GetConfigurationValue("UseReleaseName", "false").ToLower() == "true";
@@ -99,9 +97,9 @@ namespace ReleaseBadge
         {
             var headerName = "X-" + settingName;
 
-            if (req.Headers.Contains(headerName))
+            if (_req.Headers.Contains(headerName))
             {
-                return req.Headers.GetValues(headerName).FirstOrDefault();
+                return _req.Headers.GetValues(headerName).FirstOrDefault();
             }
 
             return GetApplicationSetting(settingName) ?? defaultValue;
@@ -110,11 +108,13 @@ namespace ReleaseBadge
         /// <summary>
         /// Gets an azure function application setting value
         /// </summary>
-        /// <param name="settingName"></param>
-        /// <returns></returns>
+        /// <param name="settingName">name of the setting to recover</param>
+        /// <returns>Value of the setting</returns>
         internal static string GetApplicationSetting(string settingName)
         {
-            return System.Environment.GetEnvironmentVariable(settingName);
+            return Environment.GetEnvironmentVariable(settingName);
         }
+
+        #endregion
     }
 }
